@@ -1,5 +1,7 @@
 # 2MIN INVADERS 👾
 
+Play it right now: https://takedaiori.github.io/2min-invaders/
+
 ## 简体中文 🇨🇳
 
 这是一款由 **腾讯元宝（Yuanbao）AI 助手** 编写的 STG 游戏 ✨ —— 从玩法、数值、代码，到菜单视觉与说明文档，都由 AI 一并完成 🤖
