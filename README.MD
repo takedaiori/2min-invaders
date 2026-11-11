@@ -17,11 +17,11 @@
 
 因为这个游戏要的只是"一块画布 + 一个循环 + 一堆矩形"，没有 3D、没有物理刚体、没有骨骼动画、也没有上万发弹幕 💡 上引擎反而会多出包体、启动、音频桥接一堆负担。把力气全花在手感与节奏上，才是这种街机短局最划算的做法 🎯
 
-### 🛸 风格怎么借鉴《太空侵略者》
+### 🛸 风格源自《太空侵略者》
 
-借的是**设计语法**，不是内容：敌机成阵列、从屏幕上方一点点压近；黑底 + 高对比块状轮廓，一眼分得清谁是谁；顶部一条简洁计分栏；还有两词全大写、不用解释的街机命名 👾 造型、字标、音效、代码全部原创，只把那份老街机的"压迫感"搬过来 ✨
+敌机成阵列、从屏幕上方一点点压近；黑底 + 高对比块状轮廓，一眼分得清谁是谁；顶部一条简洁计分栏；还有两词全大写、不用解释的街机命名 👾 造型、字标、音效、代码全部原创，只把那份老街机的"压迫感"搬过来 ✨
 
-### ⚡ 流程怎么更爽快、更紧凑
+### ⚡ 流程更爽快、更紧凑
 
 - 不用手动开火，主角机自己就在突突突 🔫，上手零门槛；
 - 开局就是密集弹幕的观感，视觉上直接拉满 💥；
@@ -30,11 +30,11 @@
 - 没有教学关、没有加载条、没有层层菜单，三个词选完就打，结算一屏看完立刻能再来一局 🔁；
 - 特效只画在边缘和局部，绝不挡住上方火力视野 👀
 
-### 💪 为什么有困难模式
+### 💪 困难模式
 
 熟悉了节奏之后，总有人想被狠一点考验 😈 困难模式沿用同一套操作和规则，只是把压力整体抬高、机群更早涌上来 —— 不用重学任何东西，但每一秒都得更专注。给"再来一局"一个明确的进阶目标，也方便和朋友们比谁撑得更漂亮 🏆
 
-### 🧘 为什么还有"不会结束"的禅模式
+### 🧘 "不会结束"的禅模式
 
 紧张够了，也得有个能松口气的地方 🌙 禅模式把终局压力拿掉，只留下"把分数一路堆上去"这一件轻松事；节奏平缓、可以慢慢玩，想停就停，停的时候照样给你好好结算 📊 它和前面的紧凑单局刚好一紧一松：想挑战就去冲，想放空就待在这儿 🫶
 
@@ -61,11 +61,11 @@ No complex, full-blown game engine. No build step, no packages, no asset pipelin
 
 All this game really needs is *one canvas, one loop, and a bunch of rectangles* 💡 No 3D, no rigid-body physics, no skeletal animation, no ten-thousand-bullet barrages. An engine would only add bundle size, startup cost and an audio bridge. For a tight arcade run like this, spending every bit of effort on feel and pacing is the smarter trade 🎯
 
-### 🛸 How it borrows from *Space Invaders*
+### 🛸 Inspired from *Space Invaders*
 
-It borrows the **design grammar**, not the content: enemies advancing in formation from the top of the screen; a dark background with high-contrast blocky silhouettes so you can read everything at a glance; a clean score strip up top; and a two-word, all-caps arcade title that needs no explanation 👾 Every sprite, the wordmark, the sounds and the code are original — only that old-school sense of pressure carried over ✨
+Enemies advancing in formation from the top of the screen; a dark background with high-contrast blocky silhouettes so you can read everything at a glance; a clean score strip up top; and a two-word, all-caps arcade title that needs no explanation 👾 Every sprite, the wordmark, the sounds and the code are original — only that old-school sense of pressure carried over ✨
 
-### ⚡ Why it feels faster and tighter
+### ⚡ It feels faster and tighter
 
 - No fire button — your ship shoots automatically, so there's zero learning curve 🔫;
 - The barrage looks maxed out from the very first second 💥;
@@ -74,11 +74,11 @@ It borrows the **design grammar**, not the content: enemies advancing in formati
 - No tutorial, no loading bar, no nested menus — pick one of three words and you're in; the results screen is one glance, then straight back for another run 🔁;
 - Effects stay on the edges and around your ship, never blocking the firing lane above 👀
 
-### 💪 Why a Hard mode exists
+### 💪 Hard mode
 
 Once you know the rhythm, some folks want a real test 😈 Hard mode keeps the exact same controls and rules but turns the pressure up and brings the swarm in sooner — nothing new to learn, just more focus every second. It gives "one more run" a clear next goal, and makes comparing scores with friends a lot more fun 🏆
 
-### 🧘 Why there's also a Zen mode that "不会结束" ("won't end")
+### 🧘 There's also a Zen mode that "won't end"
 
 After all that tension, you need somewhere to exhale 🌙 Zen mode takes the ending pressure away and leaves just one gentle thing: keep stacking up the score 📊 The pace is calm, you can play slowly, stop whenever you like, and you still get a proper score + time summary when you do 🫶 It's the perfect counterpart to the tight single run: go chase a challenge when you feel like it, or just hang out here when you don't 🫶
 
