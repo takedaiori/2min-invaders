@@ -73,7 +73,7 @@ const CFG = {
     typeRampSec:5, bombDegrade:true, gateAudio:true,
     winAt:118, ceaseOnAllP:true, maxSec:null,
     powerQuota:true, bombSchedule:[18,55,100],
-    pickupMotion:'slant', confirmQuit:false,
+    pickupMotion:'slant', confirmQuit:true,
   },
 
   hard:{
@@ -94,7 +94,7 @@ const CFG = {
     typeRampSec:5, bombDegrade:true, gateAudio:true,
     winAt:118, ceaseOnAllP:true, maxSec:null,
     powerQuota:true, bombSchedule:[18,55,100],
-    pickupMotion:'slant', confirmQuit:false,
+    pickupMotion:'slant', confirmQuit:true,
   },
 
   zen:{
@@ -176,6 +176,8 @@ const CFG = {
     confirmNo:'N / ESC    -  KEEP PLAYING',
     confirmNote:'QUIT ENDS THE RUN',
     confirmSettle:'SCORE AND TIME SETTLED',
+    resultRestart:'PRESS R TO RESTART',
+    resultMenu:'CLICK FOR MENU',
 
     modes:['STANDARD','HARD','ZEN'],
 
@@ -541,15 +543,15 @@ const Input = {
         return;
       }
       if(state==='RESULT'){
-        if(k==='r'||k===' '||k==='enter'||k==='escape'){ toMenu(); return; }
+        if(k==='r'){ startGame(mode); return; }
+        if(k===' '||k==='enter'||k==='escape'){ toMenu(); return; }
         return;
       }
 
       if(k==='p'){ togglePause(); return; }
 
       if(k==='q'||k==='escape'){
-        if(CORE.modeCfg(mode).confirmQuit){confirmQuit=true;paused=true;notify=null;}
-        else endGame('QUIT');
+        confirmQuit=true;paused=true;notify=null;
         return;
       }
       if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright'].includes(k)){
@@ -1188,8 +1190,10 @@ function drawResult(){
   text(hs,(W-textW(hs,1,1))/2,126,C.white,1,1);
   if(CFG.ui.showResultSurvival)
     text('TIME '+resultSurvival.toFixed(1)+' S',(W-textW('TIME '+resultSurvival.toFixed(1)+' S',1,1))/2,148,C.hud,1,1);
-  const s2='PRESS R OR CLICK FOR MENU';
-  text(s2,(W-textW(s2,1,1))/2,206,Math.floor(performance.now()/400)%2?C.white:C.gold,1,1);
+  const s2=CFG.menu.resultRestart;
+  text(s2,(W-textW(s2,1,1))/2,202,Math.floor(performance.now()/400)%2?C.white:C.gold,1,1);
+  const s3=CFG.menu.resultMenu;
+  text(s3,(W-textW(s3,1,1))/2,218,C.hud,1,1);
   text('THANKS FOR PLAYING',(W-textW('THANKS FOR PLAYING',1,1))/2,240,C.dim,1,1);
 }
 
