@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>2MIN INVADERS v0.32</title>
+<title>2MIN INVADERS v0.34</title>
 <style>
   html,body{margin:0;height:100%;background:#08080f;overflow:hidden;
             touch-action:none;overscroll-behavior:none;
@@ -39,6 +39,7 @@ const CFG = {
        portraitLogo:true, menuMinimal:true, menuGradient:true,
        menuFrame:false, menuIcon:false, menuOptionFrame:false, noGrayFooter:true,
        result:{ defaultSel:-1, gamepadDead:0.45, gamepadRepeatMs:180 },
+       focus:{ default:-1, tapMs:120, guardMs:220 },
         touch:{
           enabled:true,
           pauseBtn:{x:212,y:4,w:22,h:16},
@@ -211,7 +212,7 @@ const C = {
   player:'#38d9f0', playerDark:'#144872', beamCore:'#ffffff', beamEdge:'#7ceaff',
   eS:'#ff5c5c', eM:'#b26cff', eH:'#ff9c4a',
   p:'#3ce07a', b:'#ffd34a', hud:'#e8ecf6', dim:'#7c88a6', red:'#ff4b4b',
-  panel:'#0d1224',
+  panel:'#0d1224', press:'#2c3450', pressRow:'#23283f',
 
   pBlue:'#4ab8ff', spread:'#ffb347',
 };
@@ -569,40 +570,44 @@ const Input = {
   },
   init(){
     addEventListener('keydown',e=>{
-      const k=e.key.toLowerCase();
+      let k=(e.key||'').toLowerCase();
+      if(k==='esc'||e.keyCode===27)k='escape';
       if(['arrowup','arrowdown','arrowleft','arrowright',' ','w','a','s','d','p','m','r','t','q','y','n','escape','enter','1','2','3'].includes(k))e.preventDefault();
+      if(e.repeat)return;
       beginInteraction();
 
       if(k===CFG.ui.debugKey){ debugOpen=!debugOpen; return; }
+      if(debugOpen&&k==='escape'){debugOpen=false;return;}
       if(debugOpen) return;
 
       if(confirmQuit){
-        if(k==='y'||k==='enter'||k===' '){confirmQuit=false;paused=false;endGame('QUIT');}
-        else if(k==='n'||k==='escape'||k==='p'){confirmQuit=false;paused=false;notifyInput('RESUME');}
+        if(k==='escape'&&performance.now()<confirmGuardUntil)return;
+        if(k==='y'||k==='enter'||k===' '){tap('CONFIRM',0);closeConfirm(true);}
+        else if(k==='n'||k==='escape'||k==='p'){tap('CONFIRM',1);closeConfirm(false);}
         return;
       }
       if(k==='m'){ notifyInput(Audio_.toggleMute()?'MUTE ON':'MUTE OFF'); return; }
+      if(state==='PLAY'&&(k==='q'||k==='escape')){
+        confirmQuit=true;paused=true;notify=null;
+        this.keys.clear();
+        openConfirm();
+        return;
+      }
       if(state==='MENU'){
-        if(k==='1'){ menuSel=0; return; }
-        if(k==='2'){ menuSel=1; return; }
-        if(k==='3'){ menuSel=2; return; }
-        if(k==='arrowup'){ menuSel=(menuSel+2)%3; return; }
-        if(k==='arrowdown'){ menuSel=(menuSel+1)%3; return; }
-        if(k==='enter'||k===' '){ startGame(CFG.menu.modes[menuSel]); return; }
+        if(k==='1'||k==='2'||k==='3'){const i=+k-1;menuSel=i;menuFocus=i;tap('MENU',i);return;}
+        if(k==='arrowup'){menuSel=(menuSel+2)%3;menuFocus=menuSel;tap('MENU',menuSel);return;}
+        if(k==='arrowdown'){menuSel=(menuSel+1)%3;menuFocus=menuSel;tap('MENU',menuSel);return;}
+        if(k==='enter'||k===' '){tap('MENU',menuSel);startGame(CFG.menu.modes[menuSel]);return;}
         return;
       }
       if(state==='RESULT'){
-        if(k==='r'){ startGame(mode); return; }
-        if(k===' '||k==='enter'||k==='escape'){ toMenu(); return; }
+        if(k==='r'){tap('RESULT',0);startGame(mode);return;}
+        if(k===' '||k==='enter'||k==='escape'){tap('RESULT',1);toMenu();return;}
         return;
       }
 
       if(k==='p'){ togglePause(); return; }
 
-      if(k==='q'||k==='escape'){
-        confirmQuit=true;paused=true;notify=null;
-        return;
-      }
       if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright'].includes(k)){
         this.keys.add(k);this.source='keyboard';this.activityFlag=true;}
     });
@@ -611,51 +616,43 @@ const Input = {
       return {x:clamp((cx-r.left)/r.width*W,0,W),y:clamp((cy-r.top)/r.height*H,0,H)};};
 
     canvas.addEventListener('pointermove',e=>{const p=toLU(e.clientX,e.clientY);
-      if(confirmQuit)return;
       this.activityFlag=true;
-      if(state==='MENU'){ const m=hitMenu(p); if(m) menuSel=CFG.menu.modes.indexOf(m); }
+      if(confirmQuit){
+        const c=hitConfirm(p);
+        confirmFocus=c==='YES'?0:(c==='NO'?1:CFG.ui.focus.default);
+        return;
+      }
+      if(state==='MENU'){ const m=hitMenu(p);
+        if(m){menuFocus=CFG.menu.modes.indexOf(m);menuSel=menuFocus;}else menuFocus=CFG.ui.focus.default; }
       if(state==='RESULT'){ const h=hitResult(p);
         resultSel=h==='RESTART'?0:(h==='MENU'?1:CFG.ui.result.defaultSel); }
-      if(state==='PLAY'&&!this.keys.size&&!hitPause(p)){this.target=p;this.targetAlive=true;this.source='pointer';}});
+      if(state==='PLAY'){
+        pauseFocus=hitPause(p)?0:CFG.ui.focus.default;
+        if(!this.keys.size&&!hitPause(p)){this.target=p;this.targetAlive=true;this.source='pointer';}
+      }});
     canvas.addEventListener('pointerdown',e=>{
       e.preventDefault(); beginInteraction(); this.activityFlag=true;
       if(debugOpen) return;
       const p=toLU(e.clientX,e.clientY);
       if(dupPress(e,p))return;
-      if(confirmQuit){
-        const c=hitConfirm(p);
-        if(c==='YES'){confirmQuit=false;paused=false;endGame('QUIT');}
-        else if(c==='NO'){confirmQuit=false;paused=false;notifyInput('RESUME');}
-        return;
-      }
-      if(state==='MENU'){
-        const m=hitMenu(p);
-        if(m){menuSel=CFG.menu.modes.indexOf(m);startGame(m);}
-        return;
-      }
-      if(state==='RESULT'){resultAction(p);return;}
-      if(hitPause(p)){confirmQuit=true;paused=true;notify=null;return;}
+      if(uiDown(p))return;
       this.target=p;this.targetAlive=true;this.source='pointer';
     });
-    canvas.addEventListener('pointerleave',()=>{if(state==='RESULT')resultSel=CFG.ui.result.defaultSel;if(this.source==='pointer')this.targetAlive=false;});
+    canvas.addEventListener('pointerup',e=>{endUiPress(toLU(e.clientX,e.clientY));});
+    canvas.addEventListener('pointercancel',()=>clearPress());
+    canvas.addEventListener('pointerleave',()=>{
+      if(state==='RESULT')resultSel=CFG.ui.result.defaultSel;
+      if(state==='MENU')menuFocus=CFG.ui.focus.default;
+      if(confirmQuit)confirmFocus=CFG.ui.focus.default;
+      if(state==='PLAY')pauseFocus=CFG.ui.focus.default;
+      if(pressed)clearPress();
+      if(this.source==='pointer')this.targetAlive=false;});
     canvas.addEventListener('touchstart',e=>{
       e.preventDefault(); beginInteraction(); this.activityFlag=true;
       if(debugOpen) return;
       const tc=e.touches[0],p=toLU(tc.clientX,tc.clientY);
       if(dupPress(e,p))return;
-      if(confirmQuit){
-        const c=hitConfirm(p);
-        if(c==='YES'){confirmQuit=false;paused=false;endGame('QUIT');}
-        else if(c==='NO'){confirmQuit=false;paused=false;notifyInput('RESUME');}
-        return;
-      }
-      if(state==='MENU'){
-        const m=hitMenu(p);
-        if(m){menuSel=CFG.menu.modes.indexOf(m);startGame(m);}
-        return;
-      }
-      if(state==='RESULT'){resultAction(p);return;}
-      if(hitPause(p)){confirmQuit=true;paused=true;notify=null;return;}
+      if(uiDown(p))return;
       this.target={x:p.x,y:p.y-24};this.targetAlive=true;this.source='touch';
     },{passive:false});
     canvas.addEventListener('touchmove',e=>{
@@ -664,7 +661,12 @@ const Input = {
       const tc=e.touches[0],p=toLU(tc.clientX,tc.clientY);
       this.target={x:p.x,y:p.y-24};this.targetAlive=true;this.source='touch';
     },{passive:false});
-    canvas.addEventListener('touchend',e=>{e.preventDefault();if(e.touches.length===0)this.targetAlive=false;},{passive:false});
+    canvas.addEventListener('touchend',e=>{
+      e.preventDefault();
+      const tc=(e.changedTouches&&e.changedTouches[0])||(e.touches&&e.touches[0]);
+      endUiPress(tc?toLU(tc.clientX,tc.clientY):null);
+      if(!e.touches||e.touches.length===0)this.targetAlive=false;
+    },{passive:false});
     addEventListener('gamepadconnected',()=>notifyInput('GAMEPAD READY'));
   },
   pollResultGamepad(now){
@@ -683,9 +685,33 @@ const Input = {
       resultSel=up?0:1;gpLastNav=now;
     }
     if(confirm&&!gpPrevConfirm&&resultSel>=0){
+      tap('RESULT',resultSel);
       if(resultSel===0)startGame(mode); else toMenu();
     }
     gpPrevConfirm=confirm;
+  },
+  pollMenuGamepad(now){
+    const q=readPad();
+    if(state!=='MENU'||debugOpen||confirmQuit){gpPrevMenu=q.confirm;return;}
+    if((q.prev||q.next)&&now-gpLastNavMenu>=CFG.ui.result.gamepadRepeatMs){
+      menuFocus=q.prev?(menuFocus<=0?2:menuFocus-1):(menuFocus<0?0:Math.min(2,menuFocus+1));
+      menuSel=menuFocus;gpLastNavMenu=now;
+    }
+    if(q.confirm&&!gpPrevMenu&&menuFocus>=0){
+      tap('MENU',menuSel);startGame(CFG.menu.modes[menuSel]);
+    }
+    gpPrevMenu=q.confirm;
+  },
+  pollConfirmGamepad(now){
+    const q=readPad();
+    if(!confirmQuit||state!=='PLAY'||debugOpen){gpPrevConfirmBtn=q.confirm;return;}
+    if((q.prev||q.next)&&now-gpLastNavConfirm>=CFG.ui.result.gamepadRepeatMs){
+      confirmFocus=q.prev?0:1;gpLastNavConfirm=now;
+    }
+    if(q.confirm&&!gpPrevConfirmBtn&&confirmFocus>=0){
+      tap('CONFIRM',confirmFocus);closeConfirm(confirmFocus===0);
+    }
+    gpPrevConfirmBtn=q.confirm;
   },
   dir(){
     if(this.keys.size){
@@ -728,6 +754,9 @@ let hardQualified=false;
 let lastInputT=0, idle=false;
 let resultSurvival=0, resultBonus=0, resultEnemies=0;
 let resultSel=CFG.ui.result.defaultSel, gpLastNav=-1e9, gpPrevConfirm=false;
+let menuFocus=CFG.ui.focus.default, confirmFocus=CFG.ui.focus.default, pauseFocus=CFG.ui.focus.default;
+let pressed=null, pendingAction=null, keyTap=null, confirmGuardUntil=0;
+let gpPrevMenu=false, gpPrevConfirmBtn=false, gpLastNavMenu=-1e9, gpLastNavConfirm=-1e9;
 let notify=null, notifyT=0;
 
 let deathAnim=null;
@@ -747,9 +776,9 @@ function addScore(v){
 }
 
 function notifyInput(msg){notify=msg;notifyT=0.9;}
-function beginInteraction(){Audio_.resume();}
+function beginInteraction(){try{Audio_.resume();}catch(err){}}
 function togglePause(){if(state==='PLAY'){paused=!paused;notifyInput(paused?'PAUSED':'RESUME');}}
-function toMenu(){ state='MENU'; paused=false; notify=null; deathAnim=null; confirmQuit=false; resultSel=CFG.ui.result.defaultSel; }
+function toMenu(){ state='MENU'; paused=false; notify=null; deathAnim=null; confirmQuit=false; resultSel=CFG.ui.result.defaultSel; menuFocus=CFG.ui.focus.default;confirmFocus=CFG.ui.focus.default;pauseFocus=CFG.ui.focus.default; clearPress(); }
 
 function makeStars(){stars=[];for(let i=0;i<46;i++)stars.push({x:Math.floor(rnd(0,W)),y:Math.floor(rnd(0,H)),c:i%3===0?C.star2:C.star,s:i%3===0?18:(i%3===1?10:6)});}
 function makeEnemy(x,y,type,col){
@@ -769,7 +798,7 @@ function spawnOne(){
 }
 function startGame(m){
   mode=m; state='PLAY'; paused=false; t=0; acc=0; gateFired=false;
-  endReason='DOWN'; ceaseSpawn=false; confirmQuit=false; resultSel=CFG.ui.result.defaultSel;
+  endReason='DOWN'; ceaseSpawn=false; confirmQuit=false; resultSel=CFG.ui.result.defaultSel; menuFocus=CFG.ui.focus.default;confirmFocus=CFG.ui.focus.default;pauseFocus=CFG.ui.focus.default; clearPress(); menuFocus=CFG.ui.focus.default;confirmFocus=CFG.ui.focus.default;pauseFocus=CFG.ui.focus.default;
   score=0; combo=1; maxCombo=1; lastKillT=-99; kills=0; killBucketB=0;
   lastBDrop=-99; fireAcc=0; spawnAcc=0;
 
@@ -802,7 +831,7 @@ function startGame(m){
 
 function endGame(reason){
   if(state!=='PLAY')return;
-  state='RESULT'; endReason=reason; paused=false; resultSel=CFG.ui.result.defaultSel;
+  state='RESULT'; endReason=reason; paused=false; resultSel=CFG.ui.result.defaultSel; menuFocus=CFG.ui.focus.default;confirmFocus=CFG.ui.focus.default;pauseFocus=CFG.ui.focus.default; clearPress();
   resultSurvival=+t.toFixed(1);
   resultBonus=player.power;
   resultEnemies=enemies.length;
@@ -1172,9 +1201,10 @@ function drawHUD(){
   const t=CFG.ui.touch;
   if(t&&t.enabled&&state==='PLAY'&&!confirmQuit&&!paused){
     const b=t.pauseBtn;
-    buttonFrame(b,false);
-    const cx=Math.round(b.x+b.w/2), cy=Math.round(b.y+b.h/2);
-    for(let i=-4;i<=4;i++){R(cx+i,cy+i,1,1,C.gold);R(cx+i,cy-i,1,1,C.gold);}
+    const pd=isPressed('PAUSE',0);
+    buttonFrame(b,pauseFocus===0,pd);
+    const cx=Math.round(b.x+b.w/2), cy=Math.round(b.y+b.h/2), cc=pd?C.white:C.gold;
+    for(let i=-4;i<=4;i++){R(cx+i,cy+i,1,1,cc);R(cx+i,cy-i,1,1,cc);}
   }
 }
 
@@ -1196,6 +1226,85 @@ function menuGradient(){
   }
 }
 
+function inRect(p,r){
+  return !!p&&!!r&&p.x>=r.x&&p.x<=r.x+r.w&&p.y>=r.y&&p.y<=r.y+r.h;
+}
+function isPressed(scene,idx){
+  if(pressed&&pressed.scene===scene&&pressed.idx===idx)return true;
+  return !!keyTap&&keyTap.scene===scene&&keyTap.idx===idx&&performance.now()<keyTap.until;
+}
+function tap(scene,idx){
+  keyTap={scene,idx,until:performance.now()+CFG.ui.focus.tapMs};
+}
+function beginUiPress(scene,idx,hit,run){
+  pressed={scene,idx};
+  pendingAction={hit,run};
+}
+function endUiPress(p){
+  const a=pendingAction;
+  pressed=null;pendingAction=null;
+  if(!a)return;
+  if(p&&!inRect(p,a.hit))return;
+  a.run();
+}
+function clearPress(){
+  pressed=null;pendingAction=null;
+}
+function uiDown(p){
+  if(confirmQuit){
+    const c=hitConfirm(p);
+    if(c==='YES')beginUiPress('CONFIRM',0,{x:24,y:142,w:192,h:22},()=>closeConfirm(true));
+    else if(c==='NO')beginUiPress('CONFIRM',1,{x:24,y:164,w:192,h:24},()=>closeConfirm(false));
+    else return false;
+    return true;
+  }
+  if(state==='MENU'){
+    const m=hitMenu(p);
+    if(!m)return false;
+    const i=CFG.menu.modes.indexOf(m);menuSel=i;menuFocus=i;
+    const r=CFG.ui.touch.menuRows[i];
+    beginUiPress('MENU',i,{x:0,y:r.y,w:W,h:r.h},()=>startGame(m));
+    return true;
+  }
+  if(state==='RESULT'){
+    const h=hitResult(p);
+    if(h===null)return false;
+    const idx=h==='RESTART'?0:1;
+    resultSel=idx;
+    beginUiPress('RESULT',idx,CFG.ui.touch.resultButtons[idx],idx===0?()=>startGame(mode):()=>toMenu());
+    return true;
+  }
+  if(hitPause(p)){
+    beginUiPress('PAUSE',0,CFG.ui.touch.pauseHit,()=>openConfirm());
+    return true;
+  }
+  return false;
+}
+function openConfirm(){
+  confirmQuit=true;paused=true;notify=null;
+  Input.keys.clear();
+  confirmFocus=CFG.ui.focus.default;pauseFocus=CFG.ui.focus.default;
+  confirmGuardUntil=performance.now()+CFG.ui.focus.guardMs;
+  clearPress();
+}
+function closeConfirm(yes){
+  confirmQuit=false;paused=false;
+  if(yes)endGame('QUIT'); else notifyInput('RESUME');
+  clearPress();
+}
+function readPad(){
+  const out={prev:false,next:false,confirm:false};
+  if(typeof navigator.getGamepads==='function'){
+    const gp=navigator.getGamepads()[0];
+    if(gp){
+      const b=gp.buttons||[],ax=(gp.axes&&gp.axes[0])||0,ay=(gp.axes&&gp.axes[1])||0,dead=CFG.ui.result.gamepadDead;
+      out.prev=ay<=-dead||ax<=-dead||!!(b[12]&&b[12].pressed)||!!(b[14]&&b[14].pressed);
+      out.next=ay>=dead||ax>=dead||!!(b[13]&&b[13].pressed)||!!(b[15]&&b[15].pressed);
+      out.confirm=!!(b[0]&&b[0].pressed)||!!(b[9]&&b[9].pressed);
+    }
+  }
+  return out;
+}
 function dupPress(e,p){
   const ts=e.timeStamp;
   if(typeof ts!=='number'||ts<=0)return false;
@@ -1222,8 +1331,7 @@ function resultAction(p){
   const h=hitResult(p);
   if(h===null)return;
   const idx=h==='RESTART'?0:1;
-  resultSel=idx;
-  if(idx===0)startGame(mode); else toMenu();
+  resultSel=idx;uiDown(p);
 }
 function hitResult(p){
   const t=CFG.ui.touch;
@@ -1232,21 +1340,25 @@ function hitResult(p){
     if(p.x>=b.x&&p.x<=b.x+b.w&&p.y>=b.y&&p.y<=b.y+b.h)return b.id;
   return null;
 }
-function buttonFrame(b,sel){
-  R(b.x,b.y,b.w,b.h,C.panel);
+function buttonFrame(b,sel,down){
+  R(b.x,b.y,b.w,b.h,down?C.press:C.panel);
   const c=sel?C.gold:C.dim;
   R(b.x,b.y,b.w,1,c);R(b.x,b.y+b.h-1,b.w,1,c);
   R(b.x,b.y,1,b.h,c);R(b.x+b.w-1,b.y,1,b.h,c);
 }
-function buttonLabel(b,label,sel){
-  buttonFrame(b,sel);
-  text(label,b.x+(b.w-textW(label,1,1))/2,b.y+Math.round((b.h-7)/2),sel?C.gold:C.hud,1,1);
+function buttonLabel(b,label,sel,down){
+  buttonFrame(b,sel,down);
+  const c=down?C.white:(sel?C.gold:C.hud);
+  text(label,b.x+(b.w-textW(label,1,1))/2,b.y+Math.round((b.h-7)/2),c,1,1);
 }
 
-function menuOption(y,sel,label){
+function menuOption(y,sel,label,idx){
   const w2=textW(label,1,1), x=(W-w2)/2;
+  const pr=isPressed('MENU',idx), r=CFG.ui.touch.menuRows[idx];
+  if(pr){R(0,r.y,W,r.h,C.pressRow);}
+  const c=pr?C.white:(sel?C.gold:C.hud);
   if(sel){R(x-12,y+2,2,2,C.gold);R(x-10,y+1,2,4,C.gold);R(x-8,y,2,6,C.gold);}
-  text(label,x,y+8,sel?C.gold:C.hud,1,1);
+  text(label,x,y+8,c,1,1);
 }
 
 function hitConfirm(p){
@@ -1264,13 +1376,13 @@ function drawConfirmQuit(){
   if(t&&t.enabled){
     const p='PAUSED';
     text(p,(W-textW(p,1,1))/2,106,C.dim,1,1);
-    buttonLabel({x:24,y:142,w:192,h:22},'QUIT',true);
-    buttonLabel({x:24,y:164,w:192,h:24},'RESUME',false);
+    buttonLabel({x:24,y:142,w:192,h:22},'QUIT',confirmFocus===0,isPressed('CONFIRM',0));
+    buttonLabel({x:24,y:164,w:192,h:24},'RESUME',confirmFocus===1,isPressed('CONFIRM',1));
     const k='Y QUIT / N RESUME';
     text(k,(W-textW(k,1,1))/2,194,C.dim,1,1);
   }else{
-    text(a,(W-textW(a,1,1))/2,150,C.gold,1,1);
-    text(b,(W-textW(b,1,1))/2,174,C.hud,1,1);
+    text(a,(W-textW(a,1,1))/2,150,confirmFocus===0||isPressed('CONFIRM',0)?C.gold:C.hud,1,1);
+    text(b,(W-textW(b,1,1))/2,174,confirmFocus===1||isPressed('CONFIRM',1)?C.gold:C.hud,1,1);
   }
   const n=CFG.menu.confirmNote, m=CFG.menu.confirmSettle;
   text(n,(W-textW(n,1,1))/2,204,C.dim,1,1);
@@ -1285,9 +1397,9 @@ function drawMenu(){
     text(s,(W-textW(s,2,1))/2,80,C.white,2,1);
   }
 
-  menuOption(190,menuSel===0,CFG.menu.standard);
-  menuOption(222,menuSel===1,CFG.menu.hard);
-  menuOption(254,menuSel===2,CFG.menu.zen);
+  menuOption(190,menuFocus===0,CFG.menu.standard,0);
+  menuOption(222,menuFocus===1,CFG.menu.hard,1);
+  menuOption(254,menuFocus===2,CFG.menu.zen,2);
 
   const hs='HI '+pad(hi[CFG.menu.modes[menuSel]],CFG.score.digits);
   text(hs,(W-textW(hs,1,1))/2,290,C.gold,1,1);
@@ -1333,14 +1445,14 @@ function drawResult(){
     text('TIME '+resultSurvival.toFixed(1)+' S',(W-textW('TIME '+resultSurvival.toFixed(1)+' S',1,1))/2,148,C.hud,1,1);
   const t=CFG.ui.touch;
   if(t&&t.enabled){
-    buttonLabel(t.resultButtons[0],CFG.menu.resultRestart,resultSel===0);
-    buttonLabel(t.resultButtons[1],CFG.menu.resultMenu,resultSel===1);
+    buttonLabel(t.resultButtons[0],CFG.menu.resultRestart,resultSel===0,isPressed('RESULT',0));
+    buttonLabel(t.resultButtons[1],CFG.menu.resultMenu,resultSel===1,isPressed('RESULT',1));
     text('THANKS FOR PLAYING',(W-textW('THANKS FOR PLAYING',1,1))/2,246,C.dim,1,1);
   }else{
     const s2=CFG.menu.resultRestart;
-    text(s2,(W-textW(s2,1,1))/2,202,resultSel===0?C.gold:C.hud,1,1);
+    text(s2,(W-textW(s2,1,1))/2,202,isPressed('RESULT',0)?C.white:(resultSel===0?C.gold:C.hud),1,1);
     const s3=CFG.menu.resultMenu;
-    text(s3,(W-textW(s3,1,1))/2,218,resultSel===1?C.gold:C.hud,1,1);
+    text(s3,(W-textW(s3,1,1))/2,218,isPressed('RESULT',1)?C.white:(resultSel===1?C.gold:C.hud),1,1);
     text('THANKS FOR PLAYING',(W-textW('THANKS FOR PLAYING',1,1))/2,240,C.dim,1,1);
   }
 }
@@ -1431,6 +1543,8 @@ function frame(now){
     while(acc>=CFG.time.step&&guard++<8&&state==='PLAY'){step(CFG.time.step);acc-=CFG.time.step;}
   }else acc=0;
   Input.pollResultGamepad(now);
+  Input.pollMenuGamepad(now);
+  Input.pollConfirmGamepad(now);
   draw();
 }
 document.addEventListener('visibilitychange',()=>{if(document.hidden)Audio_.suspend();else{last=performance.now();Audio_.resume();}});
