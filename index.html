@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>2MIN INVADERS v0.31</title>
+<title>2MIN INVADERS v0.32</title>
 <style>
   html,body{margin:0;height:100%;background:#08080f;overflow:hidden;
             touch-action:none;overscroll-behavior:none;
@@ -38,6 +38,7 @@ const CFG = {
 
        portraitLogo:true, menuMinimal:true, menuGradient:true,
        menuFrame:false, menuIcon:false, menuOptionFrame:false, noGrayFooter:true,
+       result:{ defaultSel:-1, gamepadDead:0.45, gamepadRepeatMs:180 },
         touch:{
           enabled:true,
           pauseBtn:{x:212,y:4,w:22,h:16},
@@ -613,6 +614,8 @@ const Input = {
       if(confirmQuit)return;
       this.activityFlag=true;
       if(state==='MENU'){ const m=hitMenu(p); if(m) menuSel=CFG.menu.modes.indexOf(m); }
+      if(state==='RESULT'){ const h=hitResult(p);
+        resultSel=h==='RESTART'?0:(h==='MENU'?1:CFG.ui.result.defaultSel); }
       if(state==='PLAY'&&!this.keys.size&&!hitPause(p)){this.target=p;this.targetAlive=true;this.source='pointer';}});
     canvas.addEventListener('pointerdown',e=>{
       e.preventDefault(); beginInteraction(); this.activityFlag=true;
@@ -630,14 +633,11 @@ const Input = {
         if(m){menuSel=CFG.menu.modes.indexOf(m);startGame(m);}
         return;
       }
-      if(state==='RESULT'){
-        if(hitResult(p)==='RESTART'){startGame(mode);return;}
-        toMenu();return;
-      }
+      if(state==='RESULT'){resultAction(p);return;}
       if(hitPause(p)){confirmQuit=true;paused=true;notify=null;return;}
       this.target=p;this.targetAlive=true;this.source='pointer';
     });
-    canvas.addEventListener('pointerleave',()=>{if(this.source==='pointer')this.targetAlive=false;});
+    canvas.addEventListener('pointerleave',()=>{if(state==='RESULT')resultSel=CFG.ui.result.defaultSel;if(this.source==='pointer')this.targetAlive=false;});
     canvas.addEventListener('touchstart',e=>{
       e.preventDefault(); beginInteraction(); this.activityFlag=true;
       if(debugOpen) return;
@@ -654,10 +654,7 @@ const Input = {
         if(m){menuSel=CFG.menu.modes.indexOf(m);startGame(m);}
         return;
       }
-      if(state==='RESULT'){
-        if(hitResult(p)==='RESTART'){startGame(mode);return;}
-        toMenu();return;
-      }
+      if(state==='RESULT'){resultAction(p);return;}
       if(hitPause(p)){confirmQuit=true;paused=true;notify=null;return;}
       this.target={x:p.x,y:p.y-24};this.targetAlive=true;this.source='touch';
     },{passive:false});
@@ -669,6 +666,26 @@ const Input = {
     },{passive:false});
     canvas.addEventListener('touchend',e=>{e.preventDefault();if(e.touches.length===0)this.targetAlive=false;},{passive:false});
     addEventListener('gamepadconnected',()=>notifyInput('GAMEPAD READY'));
+  },
+  pollResultGamepad(now){
+    let up=false,down=false,confirm=false;
+    if(typeof navigator.getGamepads==='function'){
+      const gp=navigator.getGamepads()[0];
+      if(gp){
+        const b=gp.buttons||[], a=(gp.axes&&gp.axes[1])||0, dead=CFG.ui.result.gamepadDead;
+        up=a<=-dead||!!(b[12]&&b[12].pressed);
+        down=a>=dead||!!(b[13]&&b[13].pressed);
+        confirm=!!(b[0]&&b[0].pressed)||!!(b[9]&&b[9].pressed);
+      }
+    }
+    if(state!=='RESULT'||debugOpen||confirmQuit){gpPrevConfirm=confirm;return;}
+    if((up||down)&&now-gpLastNav>=CFG.ui.result.gamepadRepeatMs){
+      resultSel=up?0:1;gpLastNav=now;
+    }
+    if(confirm&&!gpPrevConfirm&&resultSel>=0){
+      if(resultSel===0)startGame(mode); else toMenu();
+    }
+    gpPrevConfirm=confirm;
   },
   dir(){
     if(this.keys.size){
@@ -710,6 +727,7 @@ let hardQualified=false;
 
 let lastInputT=0, idle=false;
 let resultSurvival=0, resultBonus=0, resultEnemies=0;
+let resultSel=CFG.ui.result.defaultSel, gpLastNav=-1e9, gpPrevConfirm=false;
 let notify=null, notifyT=0;
 
 let deathAnim=null;
@@ -731,7 +749,7 @@ function addScore(v){
 function notifyInput(msg){notify=msg;notifyT=0.9;}
 function beginInteraction(){Audio_.resume();}
 function togglePause(){if(state==='PLAY'){paused=!paused;notifyInput(paused?'PAUSED':'RESUME');}}
-function toMenu(){ state='MENU'; paused=false; notify=null; deathAnim=null; confirmQuit=false; }
+function toMenu(){ state='MENU'; paused=false; notify=null; deathAnim=null; confirmQuit=false; resultSel=CFG.ui.result.defaultSel; }
 
 function makeStars(){stars=[];for(let i=0;i<46;i++)stars.push({x:Math.floor(rnd(0,W)),y:Math.floor(rnd(0,H)),c:i%3===0?C.star2:C.star,s:i%3===0?18:(i%3===1?10:6)});}
 function makeEnemy(x,y,type,col){
@@ -751,7 +769,7 @@ function spawnOne(){
 }
 function startGame(m){
   mode=m; state='PLAY'; paused=false; t=0; acc=0; gateFired=false;
-  endReason='DOWN'; ceaseSpawn=false; confirmQuit=false;
+  endReason='DOWN'; ceaseSpawn=false; confirmQuit=false; resultSel=CFG.ui.result.defaultSel;
   score=0; combo=1; maxCombo=1; lastKillT=-99; kills=0; killBucketB=0;
   lastBDrop=-99; fireAcc=0; spawnAcc=0;
 
@@ -784,7 +802,7 @@ function startGame(m){
 
 function endGame(reason){
   if(state!=='PLAY')return;
-  state='RESULT'; endReason=reason; paused=false;
+  state='RESULT'; endReason=reason; paused=false; resultSel=CFG.ui.result.defaultSel;
   resultSurvival=+t.toFixed(1);
   resultBonus=player.power;
   resultEnemies=enemies.length;
@@ -1199,6 +1217,14 @@ function hitPause(p){
   const h=t.pauseHit;
   return p.x>=h.x&&p.x<=h.x+h.w&&p.y>=h.y&&p.y<=h.y+h.h;
 }
+function resultAction(p){
+  if(state!=='RESULT')return;
+  const h=hitResult(p);
+  if(h===null)return;
+  const idx=h==='RESTART'?0:1;
+  resultSel=idx;
+  if(idx===0)startGame(mode); else toMenu();
+}
 function hitResult(p){
   const t=CFG.ui.touch;
   if(!t||!t.enabled||state!=='RESULT')return null;
@@ -1307,14 +1333,14 @@ function drawResult(){
     text('TIME '+resultSurvival.toFixed(1)+' S',(W-textW('TIME '+resultSurvival.toFixed(1)+' S',1,1))/2,148,C.hud,1,1);
   const t=CFG.ui.touch;
   if(t&&t.enabled){
-    buttonLabel(t.resultButtons[0],CFG.menu.resultRestart,true);
-    buttonLabel(t.resultButtons[1],CFG.menu.resultMenu,false);
+    buttonLabel(t.resultButtons[0],CFG.menu.resultRestart,resultSel===0);
+    buttonLabel(t.resultButtons[1],CFG.menu.resultMenu,resultSel===1);
     text('THANKS FOR PLAYING',(W-textW('THANKS FOR PLAYING',1,1))/2,246,C.dim,1,1);
   }else{
     const s2=CFG.menu.resultRestart;
-    text(s2,(W-textW(s2,1,1))/2,202,Math.floor(performance.now()/400)%2?C.white:C.gold,1,1);
+    text(s2,(W-textW(s2,1,1))/2,202,resultSel===0?C.gold:C.hud,1,1);
     const s3=CFG.menu.resultMenu;
-    text(s3,(W-textW(s3,1,1))/2,218,C.hud,1,1);
+    text(s3,(W-textW(s3,1,1))/2,218,resultSel===1?C.gold:C.hud,1,1);
     text('THANKS FOR PLAYING',(W-textW('THANKS FOR PLAYING',1,1))/2,240,C.dim,1,1);
   }
 }
@@ -1404,6 +1430,7 @@ function frame(now){
     acc+=dt;let guard=0;
     while(acc>=CFG.time.step&&guard++<8&&state==='PLAY'){step(CFG.time.step);acc-=CFG.time.step;}
   }else acc=0;
+  Input.pollResultGamepad(now);
   draw();
 }
 document.addEventListener('visibilitychange',()=>{if(document.hidden)Audio_.suspend();else{last=performance.now();Audio_.resume();}});
